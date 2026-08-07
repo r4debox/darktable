@@ -689,8 +689,7 @@ void process(dt_iop_module_t *self,
 
 void init(dt_iop_module_t *self)
 {
-  if(darktable.gui)
-    dt_iop_request_focus(self);
+  dt_iop_default_init(self);  // sets params_size + allocates params from introspection
   self->gui_data = NULL;
 
   dt_iop_stegtag_params_t *d = (dt_iop_stegtag_params_t *)self->default_params;
