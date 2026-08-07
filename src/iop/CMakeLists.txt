@@ -169,5 +169,8 @@ if(APPLE)
   set_target_properties(demosaic PROPERTIES LINKER_LANGUAGE C)
 endif(APPLE)
 
+
+add_iop(phocus_layers "phocus_layers.c")
+add_iop(stegtag "stegtag.c")
 set_property(GLOBAL PROPERTY DT_PLUGIN_IOPS ${_iop_list})
 set_property(GLOBAL PROPERTY DT_PLUGIN_IOPS_VISIBLE_BY_DEFAULT ${_iop_default_visible_list})
