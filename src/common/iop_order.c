@@ -115,6 +115,7 @@ const dt_iop_order_entry_t legacy_order[] = {
   { {27.0f }, "colorin", 0},
   { {27.5f }, "channelmixerrgb", 0},
   { {27.5f }, "contrastntexture", 0}, 
+  { {27.5f }, "phocus_color", 0},
   { {27.5f }, "diffuse", 0},
   { {27.5f }, "censorize", 0},
   { {27.5f }, "negadoctor", 0},
@@ -163,6 +164,7 @@ const dt_iop_order_entry_t legacy_order[] = {
   { {56.5f }, "lut3d", 0},
   { {57.0f }, "colorcontrast", 0},
   { {58.0f }, "colorout", 0},
+  { { 58.5f }, "phocus_layers", 0},
   { {59.0f }, "channelmixer", 0},
   { {60.0f }, "soften", 0},
   { {61.0f }, "vignette", 0},
@@ -175,6 +177,7 @@ const dt_iop_order_entry_t legacy_order[] = {
   { {67.5f }, "dither", 0},
   { {68.0f }, "borders", 0},
   { {69.0f }, "watermark", 0},
+  { { 70.5f }, "stegtag", 0},
   { {71.0f }, "gamma", 0},
   { { 0.0f }, "", 0}
 };
@@ -223,6 +226,7 @@ const dt_iop_order_entry_t v30_order[] = {
   { {28.0f }, "colorin", 0},
   { {28.5f }, "channelmixerrgb", 0},
   { {28.5f }, "contrastntexture", 0},
+  { {28.5f }, "phocus_color", 0},
   { {28.5f }, "diffuse", 0},
   { {28.5f }, "censorize", 0},
   { {28.5f }, "negadoctor", 0},      // Cineon film encoding comes
@@ -292,6 +296,7 @@ const dt_iop_order_entry_t v30_order[] = {
   { {68.0f }, "vignette", 0},        // creative module
   { {69.0f }, "colorreconstruct", 0},// try to salvage blown areas before ICC intents in LittleCMS2 do things with them.
   { {70.0f }, "colorout", 0},
+  { { 70.5f }, "phocus_layers", 0},
   { {71.0f }, "clahe", 0},
   { {72.0f }, "finalscale", 0},
   { {73.0f }, "overexposed", 0},
@@ -299,6 +304,7 @@ const dt_iop_order_entry_t v30_order[] = {
   { {75.0f }, "dither", 0},
   { {76.0f }, "borders", 0},
   { {77.0f }, "watermark", 0},
+  { { 77.5f }, "stegtag", 0},
   { {78.0f }, "gamma", 0},
   { { 0.0f }, "", 0 }
 };
@@ -346,6 +352,7 @@ const dt_iop_order_entry_t v50_order[] = {
   { {28.0f }, "colorin", 0},
   { {28.5f }, "channelmixerrgb", 0},
   { {28.5f }, "contrastntexture", 0},
+  { {28.5f }, "phocus_color", 0},
   { {28.5f }, "diffuse", 0},
   { {28.5f }, "censorize", 0},
   { {28.5f }, "negadoctor", 0},      // Cineon film encoding comes
@@ -416,12 +423,14 @@ const dt_iop_order_entry_t v50_order[] = {
   { {69.0f }, "colorreconstruct", 0},// try to salvage blown areas before ICC intents in LittleCMS2 do things with them.
   { {69.4f }, "finalscale", 0},
   { {70.0f }, "colorout", 0},
+  { { 70.5f }, "phocus_layers", 0},
   { {71.0f }, "clahe", 0},
   { {73.0f }, "overexposed", 0},
   { {74.0f }, "rawoverexposed", 0},
   { {75.0f }, "dither", 0},
   { {76.0f }, "borders", 0},
   { {77.0f }, "watermark", 0},
+  { { 77.5f }, "stegtag", 0},
   { {78.0f }, "gamma", 0},
   { { 0.0f }, "", 0 }
 };
@@ -470,6 +479,7 @@ const dt_iop_order_entry_t v30_jpg_order[] = {
   // from there, it's the same as the raw order
   { { 28.5f }, "channelmixerrgb", 0 },
   { { 28.5f }, "contrastntexture", 0 },
+  { { 28.5f }, "phocus_color", 0 },
   { { 28.5f }, "diffuse", 0 },
   { { 28.5f }, "censorize", 0 },
   { { 28.5f }, "negadoctor", 0 },   // Cineon film encoding comes after scanner input color profile
@@ -541,6 +551,7 @@ const dt_iop_order_entry_t v30_jpg_order[] = {
   { { 69.0f }, "colorreconstruct", 0 }, // try to salvage blown areas before ICC intents in LittleCMS2 do things
                                         // with them.
   { { 70.0f }, "colorout", 0 },
+  { { 70.5f }, "phocus_layers", 0},
   { { 71.0f }, "clahe", 0 },
   { { 72.0f }, "finalscale", 0 },
   { { 73.0f }, "overexposed", 0 },
@@ -548,6 +559,7 @@ const dt_iop_order_entry_t v30_jpg_order[] = {
   { { 75.0f }, "dither", 0 },
   { { 76.0f }, "borders", 0 },
   { { 77.0f }, "watermark", 0 },
+  { { 77.5f }, "stegtag", 0},
   { { 78.0f }, "gamma", 0 },
   { { 0.0f }, "", 0 }
 };
@@ -596,6 +608,7 @@ const dt_iop_order_entry_t v50_jpg_order[] = {
   // from there, it's the same as the raw order
   { { 28.5f }, "channelmixerrgb", 0 },
   { { 28.5f }, "contrastntexture", 0 },
+  { { 28.5f }, "phocus_color", 0 },
   { { 28.5f }, "diffuse", 0 },
   { { 28.5f }, "censorize", 0 },
   { { 28.5f }, "negadoctor", 0 },   // Cineon film encoding comes after scanner input color profile
@@ -668,12 +681,14 @@ const dt_iop_order_entry_t v50_jpg_order[] = {
                                         // with them.
   { { 69.5f }, "finalscale", 0 },
   { { 70.0f }, "colorout", 0 },
+  { { 70.5f }, "phocus_layers", 0},
   { { 71.0f }, "clahe", 0 },
   { { 73.0f }, "overexposed", 0 },
   { { 74.0f }, "rawoverexposed", 0 },
   { { 75.0f }, "dither", 0 },
   { { 76.0f }, "borders", 0 },
   { { 77.0f }, "watermark", 0 },
+  { { 77.5f }, "stegtag", 0},
   { { 78.0f }, "gamma", 0 },
   { { 0.0f }, "", 0 }
 };
