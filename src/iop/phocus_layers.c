@@ -1,11 +1,8 @@
 /*
- * Phocus Layers Plugin for darktable
+ * Phocus Layers for darktable
  *
  * Implements Phocus-style local adjustment layers with masks.
- * Uses real darktable headers for correct struct layout.
- *
- * Build: cmake -B build -DBUILD_STANDALONE=ON && cmake --build build
- * Install: sudo cmake --install build
+ * In-tree IOP module.
  */
 
 #ifdef HAVE_CONFIG_H
