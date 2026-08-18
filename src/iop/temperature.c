@@ -1803,9 +1803,7 @@ static void _preset_tune_callback(GtkWidget *widget, dt_iop_module_t *self)
     case DT_IOP_TEMP_SPOT: // from image area wb, expose callback will set p->rgbg2.
       if(!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(g->colorpicker)))
       {
-        gboolean ret_val;
-        g_signal_emit_by_name(G_OBJECT(g->colorpicker), "button-press-event",
-                              NULL, &ret_val);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->colorpicker), TRUE);
       }
       break;
     case DT_IOP_TEMP_USER: // directly changing one of the coeff
