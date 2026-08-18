@@ -362,6 +362,7 @@ void init_pipe(dt_iop_module_t *self,
                dt_dev_pixelpipe_iop_t *piece)
 {
   dt_iop_phocus_color_data_t *d = calloc(1, sizeof(dt_iop_phocus_color_data_t));
+  if(!d) return;
   piece->data = d;
 
   /* pre-load LUT for the current sensor */
@@ -392,6 +393,7 @@ void gui_update(dt_iop_module_t *self)
 void gui_init(dt_iop_module_t *self)
 {
   dt_iop_phocus_color_gui_data_t *g = malloc(sizeof(dt_iop_phocus_color_gui_data_t));
+  if(!g) return;
   self->gui_data = g;
 
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, DT_BAUHAUS_SPACE);
