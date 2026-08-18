@@ -47,6 +47,15 @@ DT_MODULE_INTROSPECTION(1, dt_iop_stegtag_params_t)
 #define BLOCKS_PER_BYTE   8      /* 8 blocks to embed 1 byte */
 #define OVERSAMPLE        3      /* embed each bit in 3 blocks for redundancy */
 
+/* conf keys for persistent defaults */
+#define CONF_PREFIX "plugins/darkroom/stegtag/"
+#define CONF_MODE      CONF_PREFIX "mode"
+#define CONF_STRENGTH  CONF_PREFIX "strength"
+#define CONF_SEED      CONF_PREFIX "seed"
+#define CONF_ADAPTIVE  CONF_PREFIX "adaptive"
+#define CONF_CHANNEL   CONF_PREFIX "channel"
+#define CONF_PAYLOAD   CONF_PREFIX "payload"
+
 /* ============================================================================
  * PARAMETERS
  * ============================================================================ */
@@ -78,6 +87,7 @@ typedef struct dt_iop_stegtag_gui_data_t
   GtkWidget *adaptive_check;
   GtkWidget *channel_combo;
   GtkWidget *status_label;
+  GtkWidget *save_defaults_btn;
 } dt_iop_stegtag_gui_data_t;
 
 /* ============================================================================
@@ -687,6 +697,8 @@ void process(dt_iop_module_t *self,
   process_stegtag(self, piece, ivoid, ovoid, roi_in, roi_out);
 }
 
+static void _load_defaults(dt_iop_stegtag_params_t *p);
+
 void init(dt_iop_module_t *self)
 {
   dt_iop_default_init(self);  // sets params_size + allocates params from introspection
@@ -699,6 +711,9 @@ void init(dt_iop_module_t *self)
   d->adaptive = TRUE;
   d->color_channel = 0; /* luma */
   memset(d->payload, 0, MAX_PAYLOAD_LEN);
+
+  /* load saved defaults if they exist */
+  _load_defaults(d);
 }
 
 void cleanup(dt_iop_module_t *self)
@@ -829,9 +844,51 @@ void gui_update(dt_iop_module_t *self)
     gtk_label_set_text(GTK_LABEL(g->status_label), status);
 }
 
+/* save current params to darktable conf as defaults for new instances */
+static void _save_defaults(dt_iop_module_t *self)
+{
+  dt_iop_stegtag_params_t *p = (dt_iop_stegtag_params_t *)self->params;
+  dt_conf_set_int(CONF_MODE, (int)p->mode);
+  dt_conf_set_float(CONF_STRENGTH, p->strength);
+  dt_conf_set_int(CONF_SEED, (int)p->seed);
+  dt_conf_set_int(CONF_ADAPTIVE, p->adaptive ? 1 : 0);
+  dt_conf_set_int(CONF_CHANNEL, p->color_channel);
+  dt_conf_set_string(CONF_PAYLOAD, p->payload);
+
+  dt_iop_stegtag_gui_data_t *g = (dt_iop_stegtag_gui_data_t *)self->gui_data;
+  if(g->status_label)
+    gtk_label_set_text(GTK_LABEL(g->status_label), "defaults saved");
+}
+
+static void save_defaults_clicked(GtkWidget *widget, dt_iop_module_t *self)
+{
+  _save_defaults(self);
+}
+
+/* load defaults from darktable conf into params (used on init) */
+static void _load_defaults(dt_iop_stegtag_params_t *p)
+{
+  if(dt_conf_key_exists(CONF_MODE))
+    p->mode = (dt_iop_stegtag_mode_t)dt_conf_get_int(CONF_MODE);
+  if(dt_conf_key_exists(CONF_STRENGTH))
+    p->strength = dt_conf_get_float(CONF_STRENGTH);
+  if(dt_conf_key_exists(CONF_SEED))
+    p->seed = (uint32_t)dt_conf_get_int(CONF_SEED);
+  if(dt_conf_key_exists(CONF_ADAPTIVE))
+    p->adaptive = dt_conf_get_int(CONF_ADAPTIVE) ? TRUE : FALSE;
+  if(dt_conf_key_exists(CONF_CHANNEL))
+    p->color_channel = dt_conf_get_int(CONF_CHANNEL);
+  if(dt_conf_key_exists(CONF_PAYLOAD))
+  {
+    const char *s = dt_conf_get_string(CONF_PAYLOAD);
+    if(s) g_strlcpy(p->payload, s, MAX_PAYLOAD_LEN);
+  }
+}
+
 void gui_init(dt_iop_module_t *self)
 {
   self->gui_data = malloc(sizeof(dt_iop_stegtag_gui_data_t));
+  if(!self->gui_data) return;
   dt_iop_stegtag_gui_data_t *g = (dt_iop_stegtag_gui_data_t *)self->gui_data;
 
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, DT_BAUHAUS_SPACE);
@@ -882,6 +939,18 @@ void gui_init(dt_iop_module_t *self)
   dt_bauhaus_combobox_add(g->channel_combo, "blue");
   g_signal_connect(G_OBJECT(g->channel_combo), "value-changed", G_CALLBACK(channel_changed), self);
   gtk_box_pack_start(GTK_BOX(self->widget), g->channel_combo, TRUE, TRUE, 0);
+
+  /* separator */
+  GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+  gtk_box_pack_start(GTK_BOX(self->widget), sep, TRUE, TRUE, 0);
+
+  /* save defaults button */
+  g->save_defaults_btn = gtk_button_new_with_label("save as defaults");
+  gtk_widget_set_tooltip_text(g->save_defaults_btn,
+    "save current settings as defaults for new stegtag instances");
+  g_signal_connect(G_OBJECT(g->save_defaults_btn), "clicked",
+                   G_CALLBACK(save_defaults_clicked), self);
+  gtk_box_pack_start(GTK_BOX(self->widget), g->save_defaults_btn, TRUE, TRUE, 0);
 
   /* status label */
   g->status_label = gtk_label_new("stegtag: ready");

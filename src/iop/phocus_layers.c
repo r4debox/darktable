@@ -359,8 +359,8 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
   const int height = roi_out->height;
   const int ch = piece->colors;  /* channels per pixel */
   
-  /* Copy input to output */
-  memcpy(out, in, (size_t)width * height * ch * sizeof(float));
+  /* Copy input to output (dt_iop_image_copy_by_size handles aliased in==out) */
+  dt_iop_image_copy_by_size(out, in, width, height, ch);
   
   /* Apply each layer */
   for (int layer_idx = 0; layer_idx < params->num_layers && layer_idx < MAX_LAYERS; layer_idx++) {
@@ -436,6 +436,11 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
           default:
             break;
         }
+
+        /* clamp pixels to safe range after adjustment to prevent NaN/inf propagation */
+        pixel[0] = fminf(fmaxf(pixel[0], 0.0f), 1.0f);
+        pixel[1] = fminf(fmaxf(pixel[1], 0.0f), 1.0f);
+        pixel[2] = fminf(fmaxf(pixel[2], 0.0f), 1.0f);
       }
     }
   }
@@ -555,6 +560,7 @@ void gui_update(dt_iop_module_t *self)
 
 void gui_init(dt_iop_module_t *self) {
   dt_iop_phocus_gui_data_t *g = calloc(1, sizeof(dt_iop_phocus_gui_data_t));
+  if(!g) return;
   self->gui_data = g;
   
   GtkWidget *widget = self->widget;
