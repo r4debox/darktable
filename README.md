@@ -50,3 +50,11 @@ run from `build/bin/darktable`. if you break system darktable: `pacman -S darkta
 
 because hasselblad thinks their color science is a trade secret you shouldn't be allowed to use outside of their shitty windows only dead software, it's math here it is fuck you. also 300$ for a new battery is ridiculous.
 
+
+---
+
+# License and Original Documentation
+
+This project is a fork of [darktable](https://www.darktable.org/). 
+The original documentation and license terms for the base darktable codebase 
+can be found in [oldreadme.md](./oldreadme.md).
