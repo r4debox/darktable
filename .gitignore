@@ -34,3 +34,4 @@ AGENTS.local.md
 
 # cache directories generated for Python tools
 __pycache__/
+.built-head
