@@ -63,7 +63,9 @@ pkgver() {
 
 build() {
     local cmake_flags=(
-        PROJECT_VERSION="$pkgver"
+        # no PROJECT_VERSION override: top-level project(VERSION) rejects
+        # non-numeric strings, and CMakeLists generates its own version from
+        # git (tagless-safe) when the flag is absent
         CMAKE_INSTALL_PREFIX=/usr
         CMAKE_INSTALL_LIBEXECDIR=/usr/lib
         CMAKE_BUILD_TYPE=Release
