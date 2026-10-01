@@ -61,6 +61,19 @@ pkgver() {
     fi
 }
 
+prepare() {
+    cd "$pkgname"
+    # makepkg's git source clone does not init submodules. cmake configure
+    # requires src/external/{rawspeed,libxcf,LibRaw,...} checked out.
+    git submodule update --init --recursive -- \
+        src/external/rawspeed \
+        src/external/OpenCL \
+        src/external/libxcf \
+        src/external/whereami \
+        src/external/LibRaw \
+        src/external/lua-scripts
+}
+
 build() {
     local cmake_flags=(
         # no PROJECT_VERSION override: top-level project(VERSION) rejects
