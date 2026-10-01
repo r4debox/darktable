@@ -51,7 +51,14 @@ sha256sums=('SKIP')
 
 pkgver() {
     cd "$pkgname"
-    git describe --long --tags 2>/dev/null | sed 's/^release-//;s/\([^-]*-g\)/r\1/;s/-/./g' || echo "$pkgver"
+    local desc
+    desc="$(git describe --long --tags 2>/dev/null)" || true
+    if [[ -n "$desc" ]]; then
+        sed 's/^release-//;s/\([^-]*-g\)/r\1/;s/-/./g' <<<"$desc"
+    else
+        # fork has no tags: derive a stable version from commit count + sha
+        echo "nightly.r$(git rev-list --count HEAD).g$(git rev-parse --short HEAD)"
+    fi
 }
 
 build() {
