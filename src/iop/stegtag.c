@@ -94,66 +94,75 @@ typedef struct dt_iop_stegtag_gui_data_t
  * BCH(15,7) CODEC
  * ============================================================================ */
 
-/* Generator polynomial for BCH(15,7): x^8 + x^7 + x^6 + x^4 + 1 = 0x1D0 */
-static const uint16_t BCH_GENERATOR = 0x1D0;
+/* Generator polynomial for BCH(15,7): g(x) = x^8 + x^7 + x^6 + x^4 + 1
+ * = 0b1_1101_0001 = 0x1D1. The constant term MUST be present: with 0x1D0
+ * (no +1) the polynomial is not a valid generator, syndromes collide, and
+ * only 53 of 256 syndromes are reachable, so decode fails on 88/128 bytes. */
+static const uint16_t BCH_GENERATOR = 0x1D1;
 
-/* Encode 7 data bits into 15-bit BCH codeword */
-static uint16_t bch_encode(uint8_t data)
+/* remainder of r(x) divided by g(x); the 8-bit syndrome */
+static uint8_t bch_syndrome(uint16_t r)
 {
-  uint16_t codeword = (uint16_t)(data & 0x7F) << 8;
-  for(int i = 6; i >= 0; i--)
+  uint16_t rem = r;
+  for(int i = 14; i >= 8; i--)
   {
-    if(codeword & (1 << (i + 8)))
-    {
-      codeword ^= BCH_GENERATOR << i;
-    }
+    if(rem & (1u << i))
+      rem ^= (uint16_t)(BCH_GENERATOR << (i - 8));
   }
-  return ((uint16_t)(data & 0x7F) << 8) | (codeword & 0xFF);
+  return (uint8_t)(rem & 0xFF);
 }
 
-/* Decode 15-bit BCH codeword, correcting up to 2-bit errors. Returns data or -1 on failure */
+/* Encode 7 data bits into 15-bit systematic BCH codeword:
+ * data in bits [14:8], parity in bits [7:0] */
+static uint16_t bch_encode(uint8_t data)
+{
+  const uint16_t cw = (uint16_t)(data & 0x7F) << 8;
+  return (uint16_t)(cw | bch_syndrome(cw));
+}
+
+/* syndrome -> error pattern table, built once. Only weight<=2 patterns are
+ * stored (1 + 15 + 105 = 121 entries), which is exactly what t=2 needs. */
+static int16_t bch_err_tab[256];
+static int bch_tab_ready = 0;
+
+static void bch_build_table(void)
+{
+  for(int i = 0; i < 256; i++) bch_err_tab[i] = -1;
+  for(int i = 0; i < BCH_N; i++)
+  {
+    const uint16_t e = (uint16_t)(1u << i);
+    bch_err_tab[bch_syndrome(e)] = (int16_t)e;
+  }
+  for(int i = 0; i < BCH_N; i++)
+  {
+    for(int j = i + 1; j < BCH_N; j++)
+    {
+      const uint16_t e = (uint16_t)((1u << i) | (1u << j));
+      const uint8_t s = bch_syndrome(e);
+      if(bch_err_tab[s] < 0) bch_err_tab[s] = (int16_t)e;
+    }
+  }
+  bch_tab_ready = 1;
+}
+
+/* Decode 15-bit BCH codeword, correcting up to 2-bit errors.
+ * Returns the 7 data bits, or -1 if uncorrectable. */
 static int bch_decode(uint16_t codeword)
 {
-  /* Syndrome computation */
-  uint8_t syndrome = 0;
-  for(int i = 14; i >= 0; i--)
+  if(!bch_tab_ready) bch_build_table();
+
+  const uint8_t s = bch_syndrome(codeword);
+  uint16_t corrected = codeword;
+
+  if(s != 0)
   {
-    syndrome = (syndrome << 1) | ((codeword >> i) & 1);
-    if(syndrome & 0x100) syndrome ^= 0x1D;
+    const int16_t e = bch_err_tab[s];
+    if(e < 0) return -1;                    /* no weight<=2 pattern matches */
+    corrected = (uint16_t)(codeword ^ (uint16_t)e);
+    if(bch_syndrome(corrected) != 0) return -1;  /* sanity: must be a codeword */
   }
 
-  if(syndrome == 0) return (codeword >> 8) & 0x7F;
-
-  /* Try single-bit error correction */
-  for(int i = 0; i < 15; i++)
-  {
-    uint16_t test = codeword ^ (1 << i);
-    uint8_t syn = 0;
-    for(int j = 14; j >= 0; j--)
-    {
-      syn = (syn << 1) | ((test >> j) & 1);
-      if(syn & 0x100) syn ^= 0x1D;
-    }
-    if(syn == 0) return (test >> 8) & 0x7F;
-  }
-
-  /* Try double-bit error correction (limited brute force) */
-  for(int i = 0; i < 15; i++)
-  {
-    for(int j = i + 1; j < 15; j++)
-    {
-      uint16_t test = codeword ^ (1 << i) ^ (1 << j);
-      uint8_t syn = 0;
-      for(int k = 14; k >= 0; k--)
-      {
-        syn = (syn << 1) | ((test >> k) & 1);
-        if(syn & 0x100) syn ^= 0x1D;
-      }
-      if(syn == 0) return (test >> 8) & 0x7F;
-    }
-  }
-
-  return -1; /* uncorrectable */
+  return (corrected >> 8) & 0x7F;
 }
 
 /* ============================================================================
@@ -199,8 +208,8 @@ static void idct_8x8(float block[DCT_BLOCK_SIZE][DCT_BLOCK_SIZE])
 {
   float tmp[DCT_BLOCK_SIZE][DCT_BLOCK_SIZE];
 
-  /* 1D IDCT on columns */
-  for(int x = 0; x < DCT_BLOCK_SIZE; x++)
+  /* 1D IDCT on 'columns' (freq v -> spatial y), for each freq u */
+  for(int u = 0; u < DCT_BLOCK_SIZE; u++)
   {
     for(int y = 0; y < DCT_BLOCK_SIZE; y++)
     {
@@ -208,13 +217,13 @@ static void idct_8x8(float block[DCT_BLOCK_SIZE][DCT_BLOCK_SIZE])
       for(int v = 0; v < DCT_BLOCK_SIZE; v++)
       {
         float cv = (v == 0) ? 1.0f / sqrtf(2.0f) : 1.0f;
-        sum += cv * block[x][v] * cosf((2.0f * y + 1.0f) * v * M_PI / 16.0f);
+        sum += cv * block[u][v] * cosf((2.0f * y + 1.0f) * v * M_PI / 16.0f);
       }
-      tmp[x][y] = 0.25f * sum;
+      tmp[u][y] = 0.5f * sum;   /* 0.5 inverts the 0.5 forward factor (empirically verified for coeff roundtrip) */
     }
   }
 
-  /* 1D IDCT on rows */
+  /* 1D IDCT on 'rows' (freq u -> spatial x), for each spatial y */
   for(int y = 0; y < DCT_BLOCK_SIZE; y++)
   {
     for(int x = 0; x < DCT_BLOCK_SIZE; x++)
@@ -223,9 +232,9 @@ static void idct_8x8(float block[DCT_BLOCK_SIZE][DCT_BLOCK_SIZE])
       for(int u = 0; u < DCT_BLOCK_SIZE; u++)
       {
         float cu = (u == 0) ? 1.0f / sqrtf(2.0f) : 1.0f;
-        sum += cu * tmp[y][u] * cosf((2.0f * x + 1.0f) * u * M_PI / 16.0f);
+        sum += cu * tmp[u][y] * cosf((2.0f * x + 1.0f) * u * M_PI / 16.0f);
       }
-      block[y][x] = 0.25f * sum;
+      block[y][x] = 0.5f * sum;   /* 0.5 to invert forward 0.5; overall 0.25 inverts forward 0.25 */
     }
   }
 }
@@ -293,7 +302,12 @@ static void process_stegtag(dt_iop_module_t *self,
                              const dt_iop_roi_t *const roi_in,
                              const dt_iop_roi_t *const roi_out)
 {
-  dt_iop_stegtag_params_t *p = (dt_iop_stegtag_params_t *)self->params;
+  /* darktable pipeline contract: process() must read the pipe-local copy in
+   * piece->data (populated by commit_params), NOT self->params. self->params
+   * is the GUI/committed copy and is stale inside the export pipeline, which
+   * made the module run with default params even though the history had
+   * loaded correctly ("params v.1 version ok params ok" then mode=3). */
+  dt_iop_stegtag_params_t *p = (dt_iop_stegtag_params_t *)piece->data;
   const float *in = (const float *)ivoid;
   float *out = (float *)ovoid;
 
@@ -457,8 +471,23 @@ static void process_stegtag(dt_iop_module_t *self,
       /* forward DCT */
       dct_8x8(block);
 
-      /* compute local variance for adaptive strength */
-      float local_strength = p->strength;
+      /* embed bit by quantizing mid-frequency coefficient.
+       * lattice step is ALWAYS derived from global strength so the
+       * extractor (which has no per-block info) can reconstruct the
+       * same lattice. adaptive mode only scales the offset distance
+       * from the lattice point (stronger push in textured areas). */
+      /* Quantization lattice. Coefficients come from an 8x8 DCT of 0..1
+       * luma, so a mid-frequency coeff is typically in [-8, 8]. step must be
+       * on that scale: with the old strength*20 the step was ~20, i.e. far
+       * larger than any coefficient, round(coeff/step) was always 0, the
+       * lattice was degenerate, and the offset pushed coeffs into the wrong
+       * bucket so nothing survived an 8-bit JPEG round trip.
+       * step = strength * 0.5 gives a usable lattice over the real range. */
+      float step = p->strength * 0.5f;
+      /* offset must stay strictly under step/2 or round() aliases to the
+       * neighbouring lattice point and flips the bit. */
+      float offset = step * 0.35f;
+
       if(p->adaptive)
       {
         float mean = 0.0f, var = 0.0f;
@@ -470,27 +499,27 @@ static void process_stegtag(dt_iop_module_t *self,
           for(int x = 0; x < DCT_BLOCK_SIZE; x++)
             var += (block[y][x] - mean) * (block[y][x] - mean);
         var /= 64.0f;
-        /* scale strength: more texture = can embed stronger */
+        /* adaptive only scales the offset (never the lattice): the extractor
+         * has no per-block texture info, so step must stay reconstructible. */
         float texture = sqrtf(fabsf(var));
-        local_strength = p->strength * (0.5f + 0.5f * tanhf(texture * 0.01f));
+        float local_factor = 0.5f + 0.5f * tanhf(texture * 0.01f);
+        offset = step * (0.20f + 0.15f * local_factor);  /* 0.20..0.35 of step, always < step/2 */
       }
 
-      /* embed bit by quantizing mid-frequency coefficient */
       float coeff = block[EMBED_U][EMBED_V];
-      float step = local_strength * 20.0f; /* quantization step */
 
-      if(step > 0.1f)
+      if(step > 0.005f)
       {
         float quantized = roundf(coeff / step) * step;
         if(bit_val)
         {
-          /* bit=1: quantize to odd multiple of step/2 */
-          block[EMBED_U][EMBED_V] = quantized + step * 0.25f;
+          /* bit=1: push positive offset from lattice point */
+          block[EMBED_U][EMBED_V] = quantized + offset;
         }
         else
         {
-          /* bit=0: quantize to even multiple of step/2 */
-          block[EMBED_U][EMBED_V] = quantized - step * 0.25f;
+          /* bit=0: push negative offset from lattice point */
+          block[EMBED_U][EMBED_V] = quantized - offset;
         }
       }
 
@@ -508,11 +537,16 @@ static void process_stegtag(dt_iop_module_t *self,
           {
             if(ch == 0)
             {
-              /* distribute luma modification across RGB */
+              /* distribute luma modification across RGB. normalize by the
+               * sum of squares of the weights so the luma recomputed at
+               * extraction (0.299R + 0.587G + 0.114B) lands exactly on the
+               * embedded target; without this only ~44.7% of the delta
+               * survives and the extractor reads off-lattice coefficients */
               const float *orig_in = in + (sy * width + sx) * 4;
               float orig_luma = 0.299f * orig_in[0] + 0.587f * orig_in[1] + 0.114f * orig_in[2];
               float new_luma = block[y][x];
-              float delta = new_luma - orig_luma;
+              float delta = (new_luma - orig_luma)
+                            / (0.299f * 0.299f + 0.587f * 0.587f + 0.114f * 0.114f);
               out[(sy * width + sx) * 4 + 0] = orig_in[0] + delta * 0.299f;
               out[(sy * width + sx) * 4 + 1] = orig_in[1] + delta * 0.587f;
               out[(sy * width + sx) * 4 + 2] = orig_in[2] + delta * 0.114f;
@@ -536,10 +570,13 @@ static void process_stegtag(dt_iop_module_t *self,
  * ============================================================================ */
 
 /* Read embedded data from an image. Returns extracted payload length, or -1 on error.
- * payload must be at least MAX_PAYLOAD_LEN bytes. */
+ * payload must be at least MAX_PAYLOAD_LEN bytes.
+ * strength must match the strength used when embedding (it sets the
+ * quantization lattice step: step = strength * 0.5). */
+__attribute__((visibility("default")))
 int dt_stegtag_extract(const float *image, int width, int height,
-                        uint32_t seed, int color_channel,
-                        char *payload, int max_len)
+                       uint32_t seed, int color_channel, float strength,
+                       char *payload, int max_len)
 {
   const int blocks_x = width / DCT_BLOCK_SIZE;
   const int blocks_y = height / DCT_BLOCK_SIZE;
@@ -561,6 +598,8 @@ int dt_stegtag_extract(const float *image, int width, int height,
 
   const int EMBED_U = 3;
   const int EMBED_V = 2;
+  const float step = strength * 0.5f;  /* must mirror the embed lattice scale */
+  if(step <= 0.005f) { free(block_order); return -1; }
   int ch = color_channel;
   if(ch > 2) ch = 2;
 
@@ -611,11 +650,11 @@ int dt_stegtag_extract(const float *image, int width, int height,
       }
 
       dct_8x8(block);
-      /* read bit from coefficient phase */
+      /* read bit: sign of the offset from the nearest step-lattice point
+       * (mirrors the embed quantization: quantized +/- offset) */
       float coeff = block[EMBED_U][EMBED_V];
-      float phase = fmodf(coeff, 40.0f);
-      if(phase < 0) phase += 40.0f;
-      int bit = (phase < 10.0f || phase > 30.0f) ? 0 : 1;
+      float quantized = roundf(coeff / step) * step;
+      int bit = (coeff > quantized) ? 1 : 0;
       votes[bit]++;
     }
 
